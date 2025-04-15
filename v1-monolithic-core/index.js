@@ -3,14 +3,17 @@ import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import nodemailer from 'nodemailer';
+import jwt from 'jsonwebtoken';
 
 //configuración inicial
 const app = express();
 const PORT = process.env.PORT || 5000
 dotenv.config();
 
-// middleware jason
+
+// middleware json
 app.use(express.json());
+
 
 // Configuración de la base de datos (usando pool directamente)
 const pool = mysql.createPool({
@@ -24,6 +27,7 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
+
 // configuracion envio de mail
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -33,14 +37,59 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+
+// token para verificar login de usuario
+const authToken = (userId) => {
+  const payload = {
+    userId
+  };
+  const options = {
+    expiresIn: '2h'  // El token expirará en 2 horas
+  };
+  return jwt.sign(payload, process.env.JWT_SECRET_PASS, options);
+};
+
+
+// Función para verificar token
+const verifyAuthToken = (userAuthToken) => {
+  try {
+    const decoded = jwt.verify(userAuthToken, process.env.JWT_SECRET_PASS);
+    return decoded;  // Token válido
+  } catch (error) {
+    return null;
+  }
+};
+
+
+// token para recuperar usuario por email
+export const tokenRecoveryPasswordEmail = (userId) => {
+  const payload = {
+    userId
+  };
+  const options = {
+    expiresIn: '5m'  // El token expirará en 5 minutos
+  };
+  return jwt.sign(payload, process.env.JWT_SECRET_PASS, options);
+}
+
+
+// Función para verificar token
+export const verifyTokenRecoveryPasswordEmail = (token) => {
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_PASS);
+    return decoded;  // Token válido
+  } catch (error) {
+    return null;
+  }
+}
+
+
 // ------------------------------ registrar usuario ------------------------------
 // -------------------------------------------------------------------------------
 
 app.post('/v1/monolithic-core/user', async (req, res) => {
        
     try {
-      //obtener conexion
-      const connection = await pool.getConnection();
         
       // obtener parametros desde body
       let { firstName, lastName, password, nationalId, passport, email, phoneNumber, address } = req.body;
@@ -57,7 +106,7 @@ app.post('/v1/monolithic-core/user', async (req, res) => {
       address = address.toLowerCase().trim()
   
       // verificar si usuario existe por email
-      const [userExists] = await connection.query(`SELECT id FROM users WHERE email = ?  LIMIT 1`, [email] )
+      const [userExists] = await pool.query(`SELECT id FROM users WHERE email = ?  LIMIT 1`, [email] )
       if (userExists.length > 0) {
         return res.status(409).json({message : 'el usuario ya se encuentra registrado'})
       }
@@ -66,12 +115,13 @@ app.post('/v1/monolithic-core/user', async (req, res) => {
       const hashedPassword = await bcrypt.hash(password, 10);
   
       // Crear el usuario en tabla users
-      const [result] = await connection.query(`INSERT INTO users 
+      const [result] = await pool.query(`INSERT INTO users 
         (firstName, lastName, password, nationalId, passport, email, phoneNumber, address) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, 
         [firstName, lastName, hashedPassword, nationalId, passport, email, phoneNumber, address]
-    );
-      
+      );
+
+      // enviar email de usuario creado      
       try {
             await transporter.sendMail({
                 from: process.env.MAIL,
@@ -87,7 +137,7 @@ app.post('/v1/monolithic-core/user', async (req, res) => {
       // Respuesta exitosa
       return res.status(201).json({
         message: 'Usuario creado exitosamente',
-        usuario_id: result.insertId, // Devuelve el ID
+        userId: result.insertId, // Devuelve el ID
       });
 
     } catch (error) {
@@ -96,6 +146,51 @@ app.post('/v1/monolithic-core/user', async (req, res) => {
     } 
   } )
 
+// ------------------------ login usario con email y contraseña ----------------------
+// -------------------------------------------------------------------------------
+
+app.post('/v1/monolithic-core/login', async (req, res) => {
+       
+  try {    
+    // obtener parametros desde body
+    let { password, email } = req.body;
+    
+    if (!password || !email) {
+      return res.status(400).json({ message: 'Email y contraseña son requeridos' });
+    }
+
+    // dar formato a entradas
+    email = email.toLowerCase().trim()
+
+    // recuperar datos de usuario en db 
+    const [users] = await pool.query(`SELECT id, password FROM users WHERE email = ?`, [email] )
+   
+    //verificar si usuario existe
+    if (users.length < 1) {
+      return res.status(404).json({message : 'el usuario no se encuentra registrado'})
+    }
+  
+    const [user] = users
+
+    // comparar contraseñas
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401 ).json({message : 'contraseña incorrecta'})
+    }
+
+    const userAuthToken = authToken(user.id)
+
+    return res.status(200).json({
+      message : 'login exitoso',
+      token: userAuthToken,
+      id: user.id
+    })
+
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({ error: 'Error al loguear el usuario' });
+  } 
+})
 
 
 // ------------------------------ buscar usuario ------------------------------
@@ -104,8 +199,6 @@ app.post('/v1/monolithic-core/user', async (req, res) => {
 app.get('/v1/monolithic-core/users', async (req, res) => {
        
   try {
-    //obtener conexion
-    const connection = await pool.getConnection();
 
     // obtener parametros desde url
     let {firstName, lastName} = req.query;
@@ -114,12 +207,12 @@ app.get('/v1/monolithic-core/users', async (req, res) => {
     let findUserByFirstName;
     let findUserByLastName;
 
-    const [allUsers] = await connection.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users`);
+    const [allUsers] = await pool.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users`);
 
     // buscar usuario por nombre
     if (firstName){
       firstName = firstName.toLowerCase().trim()
-      const [rows] = await connection.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users WHERE firstName = ?`, firstName);
+      const [rows] = await pool.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users WHERE firstName = ?`, [firstName]);
       if (rows.length < 1) {
         return res.status(404).json({
           message: 'no se ha encontrado ningun usuario con el nombre seleccionado'})
@@ -131,12 +224,11 @@ app.get('/v1/monolithic-core/users', async (req, res) => {
     // buscar usuario por nombre
     if (lastName){
       lastName = lastName.toLowerCase().trim()
-      const [rows] = await connection.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users WHERE lastName = ?`, lastName);
+      const [rows] = await pool.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users WHERE lastName = ?`, [lastName]);
       if (rows.length < 1) {
         return res.status(404).json({
           message: 'no se ha encontrado ningun usuario con el apellido seleccionado'})
       }else {
-        console.log(rows)
         findUserByLastName = rows
       }
     }
@@ -165,15 +257,14 @@ app.get('/v1/monolithic-core/users', async (req, res) => {
 // -------------------------------------------------------------------------------
 
 app.get('/v1/monolithic-core/user/:userId', async (req, res) => {
+
   try {
-    //obtener conexion
-    const connection = await pool.getConnection();
 
     // obtener parametros
     const userId = req.params.userId;
 
     // buscar todos los usuarios
-    const [result] = await connection.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users WHERE id = ?`, userId)
+    const [result] = await pool.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users WHERE id = ?`, [userId])
 
     if (!result) return res.status(404).json({
       message: 'id de usuario no encontrado'})
@@ -197,20 +288,29 @@ app.get('/v1/monolithic-core/user/:userId', async (req, res) => {
 })
 
 
-// ------------------------------- borrar usuario por id --------------------------------
+// ------------------------------- borrar usuario con token --------------------------------
 // -------------------------------------------------------------------------------
-app.delete('/v1/monolithic-core/user/:id', async (req, res) => {
+app.delete('/v1/monolithic-core/user', async (req, res) => {
   
   try {
-    //obtener conexion
-    const connection = await pool.getConnection();
-
+   
     // obtener parametros
-    const userId = req.params.id;
+    const {userToken} = req.body;
+
+    if (!userToken) {
+      return res.status(400).json({ message: 'token es requerido' });
+    }
+
+    //validar token
+    const verifyToken = verifyAuthToken(userToken)
+
+    //obtener id de usuario desde token
+    const userId = verifyToken.userId
 
     //borrar usuario
-    const [result] = await connection.query('DELETE FROM users WHERE id = ?', [userId]);
+    const [result] = await pool.query('DELETE FROM users WHERE id = ?', [userId]);
 
+    // verificar si usuario existe
     if (result.affectedRows < 1) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
@@ -230,26 +330,34 @@ app.delete('/v1/monolithic-core/user/:id', async (req, res) => {
 app.put('/v1/monolithic-core/user', async (req, res) => {
   
   try {
-    //obtener conexion
-    const connection = await pool.getConnection();
 
     //obtener parametros   
-    let { userId, firstName, lastName, email, phoneNumber, address } = req.body;
+    let { firstName, lastName, email, phoneNumber, address, userToken } = req.body;
+
+    if (!userToken) {
+      return res.status(400).json({ message: 'token es requerido' });
+    }
+
+    //validar token
+    const verifyToken = verifyAuthToken(userToken)
+
+    //obtener id de usuario desde token
+    const userId = verifyToken.userId
     
     // verificar compos con informacion para validar
     const userDataFront = {}
     if (firstName) {
-      firstName = firstName = firstName.toLowerCase().trim();
+      firstName = firstName.toLowerCase().trim();
       userDataFront.firstName = firstName;
     }
     
     if (lastName) {
-      lastName = lastName = lastName.toLowerCase().trim()
+      lastName = lastName.toLowerCase().trim()
       userDataFront.lastName = lastName;
     }
     
     if (email) {
-      email = email = email.toLowerCase().trim()
+     email = email.toLowerCase().trim()
       userDataFront.email = email;;
     }
     
@@ -268,12 +376,14 @@ app.put('/v1/monolithic-core/user', async (req, res) => {
     };
     
     // buscar informacion del usuario en db     
-    const [[userDataDB]] = await connection.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users WHERE id = ?`, userId)
+    const [usersDataDB] = await pool.query(`SELECT id, firstName, lastName, nationalId, passport, email, phoneNumber, address FROM users WHERE id = ?`, [userId])
     
     // varificar si id de usuario existe
-    if(userDataDB.length < 1){
+    if(usersDataDB.length < 1){
       return res.status(404).json({ error: "El id de usuario es incorrecto." });      
     }
+
+    const userDataDB = [usersDataDB]
     
     // convertir telefono en string para comparar con front  
     userDataDB.phoneNumber = userDataDB.phoneNumber.toString()
@@ -295,7 +405,7 @@ app.put('/v1/monolithic-core/user', async (req, res) => {
     
     // verificar que el mail no pertenezca a otro usuario antes de actualizar 
     if (userUpdate.email) {
-      const [[emailExists]] = await connection.query(`SELECT email FROM users WHERE email = ?`, email)
+      const [[emailExists]] = await pool.query(`SELECT email FROM users WHERE email = ?`, [email])
       
       if (emailExists) {
         return res.status(400).json({ message: 'el mail ya se encuentra registrado'});
@@ -314,7 +424,7 @@ app.put('/v1/monolithic-core/user', async (req, res) => {
     SET ${set_clause}
     WHERE id = ?`;
     
-    const [result] = await connection.query(query, params);
+    const [result] = await pool.query(query, params);
 
     if (result.affectedRows < 1) {
       return res.status(400).json({error: 'error al actualizar el usuario'})
@@ -326,6 +436,163 @@ app.put('/v1/monolithic-core/user', async (req, res) => {
     console.log(error)
     res.status(500).json({ error: 'Error al actualizar el usuario' });
   } 
+});
+
+// ----------------------------- actualizar contraseña ---------------------------
+// -------------------------------------------------------------------------------
+app.put('/v1/monolithic-core/user/password', async (req, res) => {
+  
+  try {
+
+    //obtener parametros   
+    const { oldPassword, newPassword, userToken } = req.body;
+
+    if (!userToken || !oldPassword || !newPassword) {
+      return res.status(400).json({ message: 'token y password son requeridos' });
+    }
+
+    //validar token
+    const verifyToken = verifyAuthToken(userToken)
+
+    //obtener id de usuario desde token
+    const userId = verifyToken.userId
+
+    // buscar password de usuario en db  
+    const [usersData] = await pool.query(`SELECT password FROM users WHERE id = ?`, [userId]);
+    
+    // varificar si id de usuario existe
+    if(usersData.length < 1){
+      return res.status(404).json({ error: "El usuario no existe." });      
+    }
+
+    const [userData] = usersData
+        
+    // Verifica si la contraseña anterior es correcta
+    const isMatch = await bcrypt.compare(oldPassword, userData.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'La contraseña actual es incorrecta' });}
+    
+    // Verifica que las contraseñas enviadas sean distintas
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ message: 'La nueva contraseña es identica a la actual' });}
+    
+    // Hashear contraseña
+    const newHashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // actualizar contraseña
+    const result = await pool.query(`UPDATE users SET password = ? WHERE id = ?`, [newHashedPassword, userId]);
+
+    if (result.affectedRows < 1) {
+      return res.status(400).json({error: 'error al actualizar la contraseña'})
+    }
+
+    // Respuesta exitosa
+    return res.status(201).json({ message: 'contraseña actualizada con exito'});
+ 
+  } catch (error) {
+    console.log(error)
+      res.status(500).json({ error: 'Error al actualizar contraseña' });
+  }
+});
+
+
+
+// ------------------------ recuperar contraseña (Paso 1) ------------------------
+// -------------------------------------------------------------------------------
+
+app.put('/v1/monolithic-core/user/reset-password/request', async (req, res) => {
+  
+  try {
+
+    //obtener parametros   
+    let { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'email es requerido' });
+    }
+
+    // dar formato a email
+    email = email.toLowerCase().trim();
+    
+    // verificar si usuario existe por email
+    const [userExists] = await pool.query(`SELECT id FROM users WHERE email = ?`, [email] )
+    if (userExists.length < 1) {
+      return res.status(409).json({message : 'el usuario no se encuentra registrado'})
+    }
+
+    const [user] = userExists
+
+    // crear token
+    const token = tokenRecoveryPasswordEmail(user.id)
+
+    // enviar email para recuperar password      
+      try {
+        await transporter.sendMail({
+            from: process.env.MAIL,
+            to: email,
+            subject: "Recuperar contraseña",
+            text: `Nos comunicamos desde monolothic api. Hemos recibido una solicitud para recuperar su contraseña.
+    Haz clic en el enlace a continuación o cópialo y pégalo en tu navegador. Luego, sigue las instrucciones en la página para restablecer tu contraseña:
+    
+    Enlace:
+    ${process.env.BASE_DIR}/v1/monolithic-core/user/reset-password/${token}
+    
+    Si no ha solicitado recuperar su contraseña, por favor ignore este correo.`
+        });
+      } catch (mailError) {
+        console.error(mailError);
+        return res.status(500).json({ error: 'Error al enviar el correo' });
+      }
+    
+    return res.status(200).json({message : 'email enviado con exito'})
+
+} catch (error) {
+  console.log(error)
+    res.status(500).json({ error: 'Error al recuperar contraseña' });
+}
+});
+
+
+// ------------------------ recuperar contraseña (Paso 2) ------------------------
+// -------------------------------------------------------------------------------
+
+app.put('/v1/monolithic-core/user/reset-password/:token', async (req, res) => {
+  
+  try {
+
+    //obtener parametros   
+    const token = req.params.token;
+    const { password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ message: 'token y password son requeridos' });
+    };
+
+    // verificar token y obtner datos de usuario
+    const verifyToken = verifyTokenRecoveryPasswordEmail(token)
+    if (!verifyToken){        
+      return res.status(400).json({ message: 'token invalido o expirado' });
+    }
+
+    const userId = verifyToken.userId
+
+    // Hashear contraseña
+    const newHashedPassword = await bcrypt.hash(password, 10);
+    
+    // actualizar contraseña
+    const result = await pool.query(`UPDATE users SET password = ? WHERE id = ?`, [newHashedPassword, userId]);
+    
+    if (result.affectedRows < 1) {
+      return res.status(400).json({error: 'error al actualizar la contraseña'})
+    }
+
+    // Respuesta exitosa
+    return res.status(201).json({ message: 'contraseña actualizada con exito'});
+  
+  } catch (error) {
+    console.log(error)
+      res.status(500).json({ error: 'Error al actualizar contraseña' });
+  }
 });
 
 
