@@ -383,7 +383,7 @@ app.put('/v1/monolithic-core/user', async (req, res) => {
       return res.status(404).json({ error: "El id de usuario es incorrecto." });      
     }
 
-    const userDataDB = [usersDataDB]
+    const [userDataDB] = usersDataDB    
     
     // convertir telefono en string para comparar con front  
     userDataDB.phoneNumber = userDataDB.phoneNumber.toString()
