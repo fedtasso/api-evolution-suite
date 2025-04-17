@@ -87,7 +87,7 @@ export const verifyTokenRecoveryPasswordEmail = (token) => {
 // ------------------------------ registrar usuario ------------------------------
 // -------------------------------------------------------------------------------
 
-app.post('/v1/monolithic-core/user', async (req, res) => {
+app.post('/v1/monolithic/user', async (req, res) => {
        
     try {
         
@@ -128,7 +128,7 @@ app.post('/v1/monolithic-core/user', async (req, res) => {
                 to: email,
                 subject: `Bienvenido ${firstName}`,
                 text: `Hola ${firstName} ${lastName}.
-                Gracias por registrarte en api-monolithic-core.`
+                Gracias por registrarte en api-monolithic.`
             });
         } catch (mailError) {
             console.error('Error enviando email:', mailError);
@@ -149,7 +149,7 @@ app.post('/v1/monolithic-core/user', async (req, res) => {
 // ------------------------ login usario con email y contraseña ----------------------
 // -------------------------------------------------------------------------------
 
-app.post('/v1/monolithic-core/login', async (req, res) => {
+app.post('/v1/monolithic/login', async (req, res) => {
        
   try {    
     // obtener parametros desde body
@@ -196,7 +196,7 @@ app.post('/v1/monolithic-core/login', async (req, res) => {
 // ------------------------------ buscar usuario ------------------------------
 // -------------------------------------------------------------------------------
 
-app.get('/v1/monolithic-core/users', async (req, res) => {
+app.get('/v1/monolithic/users', async (req, res) => {
        
   try {
 
@@ -256,7 +256,7 @@ app.get('/v1/monolithic-core/users', async (req, res) => {
 // ---------------------------- buscar usuario por ID ----------------------------
 // -------------------------------------------------------------------------------
 
-app.get('/v1/monolithic-core/user/:userId', async (req, res) => {
+app.get('/v1/monolithic/user/:userId', async (req, res) => {
 
   try {
 
@@ -290,7 +290,7 @@ app.get('/v1/monolithic-core/user/:userId', async (req, res) => {
 
 // ------------------------------- borrar usuario con token --------------------------------
 // -------------------------------------------------------------------------------
-app.delete('/v1/monolithic-core/user', async (req, res) => {
+app.delete('/v1/monolithic/user', async (req, res) => {
   
   try {
    
@@ -327,7 +327,7 @@ app.delete('/v1/monolithic-core/user', async (req, res) => {
 
 // ------------------------------- actualizar usuario --------------------------------
 // -------------------------------------------------------------------------------
-app.put('/v1/monolithic-core/user', async (req, res) => {
+app.put('/v1/monolithic/user', async (req, res) => {
   
   try {
 
@@ -440,7 +440,7 @@ app.put('/v1/monolithic-core/user', async (req, res) => {
 
 // ----------------------------- actualizar contraseña ---------------------------
 // -------------------------------------------------------------------------------
-app.put('/v1/monolithic-core/user/password', async (req, res) => {
+app.put('/v1/monolithic/user/password', async (req, res) => {
   
   try {
 
@@ -500,7 +500,7 @@ app.put('/v1/monolithic-core/user/password', async (req, res) => {
 // ------------------------ recuperar contraseña (Paso 1) ------------------------
 // -------------------------------------------------------------------------------
 
-app.put('/v1/monolithic-core/user/reset-password/request', async (req, res) => {
+app.put('/v1/monolithic/user/reset-password/request', async (req, res) => {
   
   try {
 
@@ -535,7 +535,7 @@ app.put('/v1/monolithic-core/user/reset-password/request', async (req, res) => {
     Haz clic en el enlace a continuación o cópialo y pégalo en tu navegador. Luego, sigue las instrucciones en la página para restablecer tu contraseña:
     
     Enlace:
-    ${process.env.BASE_DIR}/v1/monolithic-core/user/reset-password/${token}
+    ${process.env.BASE_DIR}/v1/monolithic/user/reset-password/${token}
     
     Si no ha solicitado recuperar su contraseña, por favor ignore este correo.`
         });
@@ -556,7 +556,7 @@ app.put('/v1/monolithic-core/user/reset-password/request', async (req, res) => {
 // ------------------------ recuperar contraseña (Paso 2) ------------------------
 // -------------------------------------------------------------------------------
 
-app.put('/v1/monolithic-core/user/reset-password/:token', async (req, res) => {
+app.put('/v1/monolithic/user/reset-password/:token', async (req, res) => {
   
   try {
 
