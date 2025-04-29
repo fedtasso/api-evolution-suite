@@ -1,5 +1,5 @@
 import { check } from 'express-validator';
-import { USER_REGEX, validationsResponse } from './helperValidations.js';
+import { USER_REGEX, validationsResponse } from './helper.validations.js';
 import { validarUsuarioGeneral } from './userValidations.js';
 
 

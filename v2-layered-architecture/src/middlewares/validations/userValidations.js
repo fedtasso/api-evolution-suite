@@ -1,5 +1,5 @@
 import { check, param} from 'express-validator';
-import { USER_REGEX, validationsResponse } from './helperValidations.js';
+import { USER_REGEX, validationsResponse } from './helper.validations.js';
 
 
 // Middleware de validación general de usuario

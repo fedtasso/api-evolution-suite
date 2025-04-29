@@ -2,8 +2,8 @@ import jwt from 'jsonwebtoken';
 import { JWT_SECRET_PASS } from './config.js';
 
 
-// token para recuperar usuario por email
-export const tokenRecoveryPasswordEmail = (user) => {
+// token recuperar usuario por email
+export const recoveryPassword = (user) => {
   const payload = {
     id: user.id,
     email: user.email
@@ -16,8 +16,8 @@ export const tokenRecoveryPasswordEmail = (user) => {
   return jwt.sign(payload, JWT_SECRET_PASS, options);
 }
 
-// Función para verificar el token
-export const verifyTokenRecoveryPasswordEmail = (token) => {
+// Función verificar token
+export const verifyRecoveryPassword = (token) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET_PASS);
     return decoded;  // Token válido

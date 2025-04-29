@@ -19,7 +19,7 @@ export const loginUser = (req, res, next) => {
 
     req.logIn(user, (err) => {
       if (err) return next(err);
-      return res.status(200).json({ message: 'Login exitoso', token: req.sessionID}); //TO DO no se recomienda enviar req.sessionID por ataques XSS
+      return res.status(200).json({ message: 'Login exitoso'});
     });
   })(req, res, next);
 };
@@ -73,7 +73,9 @@ export const updatePassword  = async (req, res) => {
    
     } catch (error) {
         res.status(500).json({ error: 'Error al actualizar contraseña' });
-    }
+    } // finally {
+    //   if  connection.release();
+    // }
 };
 
 

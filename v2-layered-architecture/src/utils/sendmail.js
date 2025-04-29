@@ -1,29 +1,20 @@
-import nodemailer from 'nodemailer';
-import { MAIL, PASSWORD_MAIL } from '../config/config.js';
+import { MAIL } from "../config/config";
+import mailTransporter from "../config/mailer";
 
-// --------------------------------- node mailer ----------------------------------
-// --------------------------------------------------------------------------------
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: MAIL,
-      pass: PASSWORD_MAIL
-    }
-  });
   
   // Función para enviar el correo
   export const sendMail = async (to, subject, text) => {
     const mailOptions = {
-      from: MAIL, 
-      to: to, // destinatario
-      subject: subject, // asunto
-      text: text // contenido del correo
-      // html: html, // cuerpo del correo en HTML (opcional)
+      from: `apiV2-LayeredArchitecture <${MAIL}>`, 
+      to,
+      subject,
+      text,
+      html
     };
   
     try {
       // sendMail devuelve una promesa
-      const info = await transporter.sendMail(mailOptions);
+      const info = await mailTransporter.sendMail(mailOptions);
       console.log('Correo enviado con exito');
       return info;
     } catch (error) {

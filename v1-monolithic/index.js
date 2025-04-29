@@ -1,7 +1,7 @@
 import express from 'express';
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
-import bcrypt from 'bcrypt';
+import bcrypt, { compareSync } from 'bcrypt';
 import nodemailer from 'nodemailer';
 import jwt from 'jsonwebtoken';
 
@@ -304,6 +304,11 @@ app.delete('/v1/monolithic/user', async (req, res) => {
     //validar token
     const verifyToken = verifyAuthToken(userToken)
 
+    // Verificar Token
+    if (!verifyToken){        
+      return res.status(400).json({ message: 'token invalido o expirado' });
+    }
+
     //obtener id de usuario desde token
     const userId = verifyToken.userId
 
@@ -337,12 +342,18 @@ app.put('/v1/monolithic/user', async (req, res) => {
     if (!userToken) {
       return res.status(400).json({ message: 'token es requerido' });
     }
-
+    
     //validar token
     const verifyToken = verifyAuthToken(userToken)
+    
+    // Verificar Token
+    if (!verifyToken){        
+      return res.status(400).json({ message: 'token invalido o expirado' });
+    }
 
     //obtener id de usuario desde token
     const userId = verifyToken.userId
+
     
     // verificar compos con informacion para validar
     const userDataFront = {}
@@ -453,6 +464,11 @@ app.put('/v1/monolithic/user/password', async (req, res) => {
 
     //validar token
     const verifyToken = verifyAuthToken(userToken)
+
+    // Verificar Token
+    if (!verifyToken){        
+      return res.status(400).json({ message: 'token invalido o expirado' });
+    }
 
     //obtener id de usuario desde token
     const userId = verifyToken.userId
@@ -568,8 +584,10 @@ app.put('/v1/monolithic/user/reset-password/:token', async (req, res) => {
       return res.status(400).json({ message: 'token y password son requeridos' });
     };
 
-    // verificar token y obtner datos de usuario
+    // validar token
     const verifyToken = verifyTokenRecoveryPasswordEmail(token)
+
+    // verificar token
     if (!verifyToken){        
       return res.status(400).json({ message: 'token invalido o expirado' });
     }
