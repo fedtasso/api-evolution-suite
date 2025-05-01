@@ -1,0 +1,1 @@
+// TO DO almacenar en redis no en variable de entorno

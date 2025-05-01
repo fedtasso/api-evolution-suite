@@ -37,7 +37,11 @@ export const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Crear el usuario en tabla usuarios
-    const result = await createUser(transaccionConexion, nombre, apellido, hashedPassword, dni, pasaporte, email, telefono, direccion);
+    const insertId = await createUser(transaccionConexion, nombre, apellido, hashedPassword, dni, pasaporte, email, telefono, direccion);
+    if (!insertId) {
+      // TO DO trow new error??? para que haga el rollback
+      return res.status(400).json({message : 'error al crear el usuario'})
+    }
     console.log(email)
     // enviar correo de registro
     const to = email
@@ -55,7 +59,7 @@ export const registerUser = async (req, res) => {
     // Respuesta exitosa
     return res.status(201).json({
       message: 'Usuario creado exitosamente',
-      usuario_id: result.insertId // Devuelve el ID
+      usuario_id: insertId // Devuelve el ID
     });
        
 
@@ -73,7 +77,7 @@ export const registerUser = async (req, res) => {
 
 
 
-// --------------------- buscar todos los usuario + filtros ----------------------
+// --------------------- buscar usuario por nombre o apellido ----------------------
 // -------------------------------------------------------------------------------
 
 export const getUser = async (req, res) => {    

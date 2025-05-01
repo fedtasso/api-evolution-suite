@@ -1,5 +1,3 @@
-// ---------------------- capitalizar texto por cada palabra ----------------------
-// --------------------------------------------------------------------------------
 export const capitalizeText = (text) => {
     return text
         .toLowerCase() // Asegura que todo el texto esté en minúsculas

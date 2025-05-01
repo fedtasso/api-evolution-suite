@@ -1,0 +1,196 @@
+Estructura propuesta
+/src
+  /validations
+    ├── auth.validations.js       # Validaciones de autenticación
+    ├── user.validations.js       # Validaciones de usuario
+    ├── schemas
+    │   ├── user.schema.js        # Esquemas de usuario (regex, etc)
+    │   └── auth.schema.js        # Esquemas de auth
+    ├── responses
+    │   └── validationResponse.js # Manejo de respuestas
+    └── index.js                  # Exportaciones centralizadas
+1. validations/schemas/user.schema.js (Regex y constantes)
+javascript
+export const USER_SCHEMA = {
+  NAME: {
+    regex: /^[A-Za-zÁ-ÿ\s]+$/,
+    message: 'Solo letras y espacios',
+    length: { min: 2, max: 50 }
+  },
+  PASSWORD: {
+    regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,20}$/,
+    message: '8-20 chars, 1 mayúscula, 1 minúscula, 1 número y 1 especial (@$!%*?&)'
+  },
+  DNI: {
+    regex: /^[0-9]{8,10}[A-Za-z]*$/,
+    message: '8-10 dígitos + letra opcional'
+  },
+  // ... otros schemas
+};
+2. validations/responses/validationResponse.js (Manejador de respuestas)
+javascript
+export const validationResponse = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    const formattedErrors = errors.array().reduce((acc, err) => {
+      acc[err.path] = err.msg;
+      return acc;
+    }, {});
+    return res.status(400).json({ 
+      success: false,
+      errors: formattedErrors,
+      code: 'VALIDATION_ERROR'
+    });
+  }
+  next();
+};
+3. validations/user.validations.js (Validaciones de usuario)
+javascript
+import { check, param } from 'express-validator';
+import { USER_SCHEMA } from './schemas/user.schema';
+import { validationResponse } from './responses/validationResponse';
+
+// Validaciones reutilizables
+const nameValidation = (field) => 
+  check(field)
+    .trim()
+    .isLength(USER_SCHEMA.NAME.length)
+    .withMessage(`Debe tener ${USER_SCHEMA.NAME.length.min}-${USER_SCHEMA.NAME.length.max} chars`)
+    .matches(USER_SCHEMA.NAME.regex)
+    .withMessage(USER_SCHEMA.NAME.message);
+
+const dniOrPassportValidation = check(['dni', 'pasaporte'])
+  .custom((_, { req }) => {
+    if (!req.body.dni && !req.body.pasaporte) {
+      throw new Error('Se requiere DNI o pasaporte');
+    }
+    return true;
+  });
+
+// Middlewares exportables
+export const validateUserGeneral = [
+  nameValidation('nombre').optional(),
+  nameValidation('apellido').optional(),
+  // ... otras validaciones opcionales
+  validationResponse
+];
+
+export const validateUserCreate = [
+  nameValidation('nombre').notEmpty(),
+  nameValidation('apellido').notEmpty(),
+  dniOrPassportValidation,
+  // ... otras validaciones requeridas
+  validationResponse
+];
+
+export const validateUserId = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('ID debe ser entero mayor a 0'),
+  validationResponse
+];
+4. validations/auth.validations.js (Validaciones de autenticación)
+javascript
+import { check } from 'express-validator';
+import { USER_SCHEMA } from './schemas/user.schema';
+import { validationResponse } from './responses/validationResponse';
+import { validateUserGeneral } from './user.validations';
+
+const emailValidation = check('email')
+  .isEmail()
+  .withMessage('Email inválido');
+
+const passwordValidation = (field) =>
+  check(field)
+    .matches(USER_SCHEMA.PASSWORD.regex)
+    .withMessage(USER_SCHEMA.PASSWORD.message);
+
+export const validateLogin = [
+  emailValidation.notEmpty(),
+  passwordValidation('password').notEmpty(),
+  validationResponse,
+  ...validateUserGeneral
+];
+
+export const validatePasswordUpdate = [
+  passwordValidation('oldPassword').notEmpty(),
+  passwordValidation('newPassword').notEmpty(),
+  validationResponse
+];
+5. validations/index.js (Punto de entrada único)
+javascript
+export * from './auth.validations';
+export * from './user.validations';
+export * from './responses/validationResponse';
+Beneficios de esta estructura:
+Separación clara de responsabilidades:
+
+schemas: Define patrones y mensajes.
+
+responses: Maneja formato de errores.
+
+user.validations/auth.validations: Lógica específica.
+
+Reutilización máxima:
+
+Validaciones como nameValidation se reutilizan.
+
+validateUserGeneral se combina donde sea necesario.
+
+Mantenibilidad:
+
+Cambiar un regex o mensaje afecta todo consistentemente.
+
+Agregar nuevas validaciones es escalable.
+
+Legibilidad:
+
+Nombres descriptivos (validatePasswordUpdate).
+
+Validaciones complejas abstractas en funciones.
+
+Ejemplo de uso en rutas:
+javascript
+import { 
+  validateUserCreate, 
+  validateLogin,
+  validationResponse 
+} from '../validations';
+
+router.post('/users', validateUserCreate, userController.create);
+router.post('/login', validateLogin, authController.login);
+Consejos adicionales:
+Custom Validators:
+
+javascript
+check('email')
+  .custom(async (email) => {
+    const exists = await User.exists({ email });
+    if (exists) throw new Error('Email ya registrado');
+  })
+Testing:
+
+Prueba cada validator individualmente.
+
+Mockea validationResult para testear validationResponse.
+
+I18n:
+
+Los mensajes podrían cargarse de un sistema de traducción.
+
+
+
+
+
+
+// Función GENÉRICA para validar cualquier campo según USER_SCHEMA
+const fieldValidation = (fieldName, isOptional = false) => {
+  const validator = check(fieldName)
+    .trim()
+    .isLength(USER_SCHEMA[fieldName.toUpperCase()].length)
+    .withMessage(`Debe tener ${USER_SCHEMA[fieldName.toUpperCase()].length.min}-${USER_SCHEMA[fieldName.toUpperCase()].length.max} caracteres`)
+    .matches(USER_SCHEMA[fieldName.toUpperCase()].regex)
+    .withMessage(USER_SCHEMA[fieldName.toUpperCase()].message);
+
+  return isOptional ? validator.optional() : validator.notEmpty();
+};

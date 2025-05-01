@@ -108,9 +108,10 @@ export const recoveryPasswordEmail  = async (req, res) => {
 
     // crear token
     const token = tokenRecoveryPasswordEmail(usuario)
-
+    
     // guardar token en tabla
     const result = await token_recovery (transaccionConexion, usuario.id, token)
+    // marcar como usado, con fecha , etc
 
     // enviar correo con enlace para recuperar password
     const to = email

@@ -1,13 +1,13 @@
 // Actualizar contraseña
-export const putPassword = async (conexion, userId, password) => {
-  const query = `UPDATE usuarios SET password = ? WHERE id = ?`;
-  const [result] = await conexion.query(query, [password, userId]);
+export const putPassword = async (connection, userId, password) => {
+  const query = `UPDATE users SET password = ? WHERE id = ?`;
+  const [result] = await connection.query(query, [password, userId]);
   return result;
  };
 
 // guardar token para recuperar cuenta
-export const token_recovery = async (conexion, usuario_id, user_token_recovery) => {
-  const query = `INSERT INTO token_recovery (usuario_id, user_token_recovery) VALUES (?, ?)`;
- const [result] = await conexion.query(query, [usuario_id, user_token_recovery]);
+export const tokenRecovery = async (connection, userId, token) => {
+  const query = `INSERT INTO password_reset_tokens (userid, token_recovery) VALUES (?, ?)`;
+ const [result] = await connection.query(query, [userId, token]);
  return result;
 };

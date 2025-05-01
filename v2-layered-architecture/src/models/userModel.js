@@ -1,61 +1,68 @@
 
 // Crear un nuevo usuario en la base de datos local
-export const createUser = async (conexion, nombre, apellido, password, dni, pasaporte, email, telefono, direccion) => {
-   const query = `INSERT INTO usuarios (nombre, apellido, password, dni, pasaporte, email, telefono, direccion) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-  const [result] = await conexion.query(query, [nombre, apellido, password, dni, pasaporte, email, telefono, direccion]);
-  return result;
+export const createUser = async (connection, firstName, lastName, password, nationalId, passport, email, phoneNumber, address) => {
+   const query = `INSERT INTO users (first_name, last_name, password, national_id, passport, email, phone_number, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+  const [result] = await connection.query(query, [firstName, lastName, password, nationalId, passport, email, phoneNumber, address]);
+  return result.length > 0 ? result.insertId : null;
 };
 
 // buscar todos los usuarios en base de dato local
-export const findUsers = async(conexion ) => {
-    const query = `SELECT id, nombre, apellido, dni, pasaporte, email, telefono, direccion FROM usuarios`;
-    const [result] = await conexion.query(query);    
+export const findUsersByName = async(connection, firstName, lastName ) => {
+    const query = `SELECT id, first_name, last_name, national_id, passport, email, phone_number, address 
+      FROM usuarios 
+      WHERE first_name LIKE CONCAT('%', ?, '%') 
+      OR last_name LIKE CONCAT('%', ?, '%')`;
+    const [result] = await connection.query(query, firstName, lastName);    
     return result  
   };
 
 // buscar un usuario por email
-export const consultarUsuarioPorEmail = async (conexion, email) => {
-  const query = `SELECT * FROM usuarios WHERE email = ?`;
-  const [result] = await conexion.query(query, [email] );
+export const findUserByEmail = async (connection, email) => {
+  const query = `SELECT * FROM users WHERE email = ?`;
+  const [result] = await connection.query(query, [email] );
   return result.length > 0 ? result[0] : null;
 }; 
 
 // buscar un usuario por id
-export const consultarUsuarioPorID = async (conexion, usuario_id) => {
-  const query = `SELECT * FROM usuarios WHERE id = ?`;
-  const [result] = await conexion.query(query, [usuario_id] );
+export const findUserById = async (connection, userId) => {
+  const query = `
+    SELECT 
+      u.*,
+      r.id AS role_id,
+      r.name AS role_name
+    FROM 
+      users u
+    LEFT JOIN 
+      user_roles ur ON u.id = ur.user_id
+    LEFT JOIN 
+      roles r ON ur.role_id = r.id
+    WHERE 
+      u.email = ?`;
+  const [result] = await connection.query(query, [userId] );
   return result.length > 0 ? result[0] : null;
 };
 
 
 //borrar usuario en tablas relacionadas y luego en tabla principal
-export const deleteUserByID = async (conexion, usuario_id) => {
-  try {
-    //borrar usuario en tablas relacionadas
-    await conexion.query('DELETE FROM token_recovery WHERE usuario_id = ?', [usuario_id]);
-   
-    //borrar usuario en tabla principal
-    const [result] = await conexion.query('DELETE FROM usuarios WHERE id = ?', [usuario_id]);
+export const deleteUserById = async (connection, userId) => {
+    const [result] = await connection.query('DELETE FROM users WHERE id = ?', [userId]);
     return result.affectedRows > 0 ? true : false;
-  } catch (error) {   
-    throw new Error("Error al borrar el usuario");
-  }
 };
 
 
 // actualizar usuario dinamicamente
-export const updateUser = async(conexion, UpdateInfoUsuario, usuario_id) => {
+export const updateUser = async(connection, UpdateInfoUsuario, userId) => {
   const set_clause = Object.entries(UpdateInfoUsuario)
       .map(([clave, _]) => `${clave} = ?`)
       .join(", ");
 
   const params = Object.values(UpdateInfoUsuario);
-  params.push(usuario_id);  // Añade el ID al final para la cláusula WHERE
+  params.push(userId);  // Añade el ID al final para la cláusula WHERE
 
-  const query = `UPDATE usuarios
+  const query = `UPDATE users
                 SET ${set_clause}
                 WHERE id = ?`;
 
-  const [result] = await conexion.query(query, params);
+  const [result] = await connection.query(query, params);
   return result.affectedRows > 0 ? true : null;
 };

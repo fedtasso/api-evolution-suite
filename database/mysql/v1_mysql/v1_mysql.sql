@@ -1,6 +1,6 @@
-DROP DATABASE IF EXISTS v1_data ;
-CREATE DATABASE IF NOT EXISTS v1_data;
-USE v1_data;
+DROP DATABASE IF EXISTS v1_mysql ;
+CREATE DATABASE IF NOT EXISTS v1_mysql;
+USE v1_mysql;
 SET time_zone = "+00:00";
 
 -- --------------------------------------------------------
