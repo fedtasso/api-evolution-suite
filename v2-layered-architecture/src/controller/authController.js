@@ -1,96 +1,151 @@
 import passport from 'passport';
-import { BASE_DIR } from '../config/config.js';
-import { conexion_Local } from '../config/database.js';
 import bcrypt from 'bcrypt';
 import validator from 'validator'
-import { putPassword, token_recovery } from '../models/authModel.js';
-import { consultarUsuarioPorEmail } from '../models/userModel.js';
-import { sendMail } from '../utils/sendmail.js';
-import { tokenRecoveryPasswordEmail, verifyTokenRecoveryPasswordEmail } from '../config/tokenConfig.js';
+import { putPassword, tokenRecovery, markUsedToken } from '../models/authModel';
+import { promiseLogoutUser } from '../utils/authHelper';
+import connectionDB from '../config/database';
+import { findUserByEmail } from '../models/userModel';
+import { recoveryPassword, verifyRecoveryPassword } from '../config/token';
+import { emailPasswordRecovery, sendMail } from '../utils/sendmail';
 
-const conexion = conexion_Local
 
 // ------------------------ login usario email y contraseña ----------------------
 // -------------------------------------------------------------------------------
 export const loginUser = (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
     if (err) return next(err);
-    if (!user) return res.status(400).json({ message: info.message });
+    if (!user) return res.status(400).json({ 
+      success: false, 
+      error: info.message || 'Credenciales inválidas',
+      status: 400
+    });
 
     req.logIn(user, (err) => {
       if (err) return next(err);
-      return res.status(200).json({ message: 'Login exitoso'});
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Login exitoso',
+        status: 200,
+        user: { id: user.id}}); // TO DO verificar si esto queda en la sesion y que pasa si lo saco
     });
   })(req, res, next);
 };
 
-// ------------------------ logout usario todos los metodos ----------------------
+// --------------------------------- logout usario  ------------------------------
 // -------------------------------------------------------------------------------
-export const logoutUser = (req, res) => {
-  req.logout((err) => {
-    if (err) return res.status(500).json({ error: 'Error al cerrar sesión' });
-     // Eliminar la cookie de sesión
-     req.session.destroy((err) => {
-      if (err) return res.status(500).json({ error: 'Error al destruir la sesión' });
 
-    // Asegurarte de eliminar la cookie en el cliente
-    res.clearCookie('connect.sid');
-    res.status(200).json({ message: 'Sesión cerrada' });
+export const httpLogoutUser = (req, res) => { 
+  // cerrar sesion
+  req.logout((err) => {
+    if (err) return res.status(500).json({ 
+      success: false, 
+      error: 'Error al cerrar sesión',
+      status: 500
+    })
   });
-});
+    
+  // Eliminar la cookie
+  req.session.destroy((err) => {
+    if (err) return res.status(500).json({
+      success: false, 
+      error: 'Error al destruir la sesión',
+      status: 500
+    });
+  });
+
+  // Eliminar la cookie en el cliente
+  res.clearCookie('connect.sid', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/'
+  });
+
+  return res.status(200).json({ 
+    success: true,
+    message: 'Sesión cerrada',
+    status: 200 
+  });
 };
 
 
 // ----------------------------- actualizar contraseña ---------------------------
 // -------------------------------------------------------------------------------
-export const updatePassword  = async (req, res) => {
-    try {
-        const usuarioId = req.user.id;
-        const { oldPassword, newPassword } = req.body;
-        
-        // Verifica si la contraseña anterior es correcta
-        const isMatch = await bcrypt.compare(oldPassword, req.user.password);
-        if (!isMatch) {
-          return res.status(400).json({ message: 'La contraseña actual es incorrecta' });}
-        
-        // Verifica que las contraseñas enviadas sean distintas
-        if (oldPassword === newPassword) {
-          return res.status(400).json({ message: 'La nueva contraseña es identica a la actual' });}
-        
-        // Hashear contraseña
-        const newHashedPassword = await bcrypt.hash(newPassword, 10);
+export const updatePassword = async (req, res) => {
+  
+  let conn;
+  try {
+    conn = await connectionDB.getConnection();;
+    await conn.beginTransaction()
 
-        // actualizar contraseña
-        const result = await putPassword (conexion, usuarioId, newHashedPassword);
+    const userId = req.user.id;
+    const { oldPassword, newPassword } = req.body;
+    
+    // Verifica si la contraseña anterior es correcta
+    const isMatch = await bcrypt.compare(oldPassword, req.user.password);
+    if (!isMatch) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'La contraseña actual es incorrecta',
+        status : 400
+      });
+    }
+    
+    // Verifica que las contraseñas enviadas sean distintas
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ 
+        success : false,
+        message: 'La nueva contraseña es identica a la actual',
+        status : 400
+      });
+    }
+    
+    // Hashear contraseña
+    const newHashedPassword = await bcrypt.hash(newPassword, 10);
 
-        // Cerrar la sesión actual usando la función logoutUser
-        req.logout((err) => {
-            if (err) return res.status(500).json({ error: 'Error al cerrar sesión' });          
-          });
+    // actualizar contraseña
+    const result = await putPassword (conn, userId, newHashedPassword);
+    if (!result) throw new Error('Error al actualizar contraseña')
 
-        // Respuesta exitosa
-        return res.status(201).json({ message: 'contraseña actualizada con exito'});
-   
-    } catch (error) {
-        res.status(500).json({ error: 'Error al actualizar contraseña' });
-    } // finally {
-    //   if  connection.release();
-    // }
+    // Cerrar la sesión actual
+    await promiseLogoutUser(req);
+
+    //confirmar transacción
+    await conn.commit(); 
+
+    // Respuesta exitosa
+    return res.status(201).json({ 
+      success : true,
+      message: 'contraseña actualizada con exito',
+      status : 201
+    });
+
+  } catch (error) {
+    console.error('Error en deleteUser', error);
+    await conn.rollback();
+    
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error al actualizar contraseña',
+      status: 500
+    });
+  } finally {
+    if (conn) conn.release();
+  }
 };
 
 
 
 // ------------------------ recuperar contraseña (Paso 1) ------------------------
 // -------------------------------------------------------------------------------
-export const recoveryPasswordEmail  = async (req, res) => {
+export const recoveryPasswordEmail = async (req, res) => {
   
-  //obtener conexion para transaccion
-  const transaccionConexion = await conexion.getConnection();
+  let conn 
 
   try {
-
-    // Inicia la transacción
-    await transaccionConexion.beginTransaction();
+    //obtener conexion
+    conn = await connectionDB.getConnection()
+    await conn.beginTransaction();
 
     let {email} = req.body;
     
@@ -98,78 +153,131 @@ export const recoveryPasswordEmail  = async (req, res) => {
     // dar formato a email
     email = validator.normalizeEmail(email);
     if (!email) {
-      return res.status(400).json({ error : "El formato de correo es inválido."})};
+      return res.status(400).json({ 
+        success: false,
+        error: "El formato de correo es inválido",
+        status: 400
+      })
+    };
 
     // verificar si usuario existe por email
-    const usuario = await consultarUsuarioPorEmail(transaccionConexion, email)
-    if (!usuario) {
-      return res.status(400).json({message : 'el email no pertenece a un usuario registrado'})
+    const user = await findUserByEmail(conn, email)
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'el email no pertenece a un usuario registrado',
+        status: 400
+      })
     }
 
     // crear token
-    const token = tokenRecoveryPasswordEmail(usuario)
+    const token = recoveryPassword(user)
     
     // guardar token en tabla
-    const result = await token_recovery (transaccionConexion, usuario.id, token)
-    // marcar como usado, con fecha , etc
+    const tokenResult = await tokenRecovery(conn, user.id, token)
+    if (!tokenResult) throw new Error('Error al guardar el token');
 
     // enviar correo con enlace para recuperar password
     const to = email
     const subject = "Recuperar contraseña"
-    const text = `Nos comunicamos desde nuestra Pro Code Camp porque hemos recibido una solicitud para recuperar su contraseña.
-Haz clic en el enlace a continuación o cópialo y pégalo en tu navegador. Luego, sigue las instrucciones en la página para restablecer tu contraseña:
+    const html = emailPasswordRecovery
 
-Enlace:
-${BASE_DIR}/recuperar-password/reset/${token}
-
-Si no ha solicitado recuperar su contraseña, por favor ignore este correo.`
-
-    const mailResult = await sendMail(to, subject, text)
-    if (!mailResult) {
-      return res.status(500).json({ error: 'Error al enviar el correo' });
-    }
+    const mailResult = await sendMail(to, subject, html)
+    if (!mailResult) throw new Error('Error al enviar el correo')
   
     //confirmar transacción 
-    await transaccionConexion.commit();
+    await conn.commit();
   
-    return res.status(200).json({message : 'email enviado conexito'})
+    return res.status(200).json({
+      success: true,
+      message: 'email enviado con éxito',
+      status: 200
+    })
 
   } catch (error) {
+    console.error('Error en recoveryPasswordEmail:', error);
     // Revertir la transacción
-    await transaccionConexion.rollback();
-    res.status(500).json({ error: 'error al recuperar contraseña' });
+    await conn.rollback();
+    return res.status(500).json({ 
+      success: false,
+      error: error.message || 'error al recuperar contraseña',
+      status: 500
+    });    
   } finally {
-    // Libera la conexión al pool
-    transaccionConexion.release();
-    }
+    if(conn) conn.release();
+  }
 };
 
 
 // ------------------------ recuperar contraseña (Paso 2) ------------------------
 // -------------------------------------------------------------------------------
 export const recoveryPasswordReset = async (req, res) => {
+  let conn
   try {
-      const token = req.params.token;
-      const {password } = req.body;
 
-      // verificar token y obtner datos de usuario
-      const usuario = verifyTokenRecoveryPasswordEmail(token)
-      if (!usuario){        
-        return res.status(400).json({ message: 'token invalido o expirado' });
-      }
-      
-      // Hashear contraseña
-      const newHashedPassword = await bcrypt.hash(password, 10);
+    conn = await connectionDB.getConnection()
+    await conn.beginTransaction()
 
-      // actualizar contraseña
-      const result = await putPassword (conexion, usuario.id, newHashedPassword);
+    const token = req.params.token;
+    const { password } = req.body;
 
-      // TO DO Cerrar sesiónes antiguas
+    // verificar token y obtner datos de usuario
+    const user = verifyRecoveryPassword(token)
+    if (!user){        
+      return res.status(400).json({ 
+        success: false,
+        message: 'token invalido o expirado',
+        status: 400
+      });
+    }
+    
+    // Hashear contraseña
+    const newHashedPassword = await bcrypt.hash(password, 10);
 
-      // Respuesta exitosa
-      return res.status(201).json({ message: 'contraseña actualizada con exito'});
+    // actualizar contraseña
+    const updateResult = await putPassword (conn, user.id, newHashedPassword);
+    if (!updateResult) throw new Error('Usuario no encontrado')
+
+    // marcar token como usado
+    const markTokenAsUsed = await markUsedToken(conn, user.id, token)
+    if (!markTokenAsUsed) throw new Error('error al cambiar contraseña, intente nuevamente')
+    
+    // cerrar sesion con passport
+    await promiseLogoutUser(req);
+
+    // 2. Eliminar cookie del cliente
+    res.clearCookie('connect.sid', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+
+    // confirmar transacción
+    await conn.commit();
+
+    // Respuesta exitosa
+    return res.status(200).json({ 
+      success: true,
+      message: 'contraseña actualizada con éxito',
+      status: 200
+    });
  
-  } catch (error) {    
-      res.status(500).json({ error: 'Error recuperar la contraseña' });
+  }catch (error) {
+    console.error('Error en recoveryPasswordReset:', error);
+    await conn.rollback();
+    
+    let currentStatus = 500;
+    if (error.message?.includes('expirado')) {
+      currentStatus = 400;
+    }
+
+    res.status(currentStatus).json({ 
+      success: false,
+      error: error.message || 'Error recuperar la contraseña',
+      status: currentStatus
+    });
+  }finally {
+    if(conn) conn.release();
   }
 };

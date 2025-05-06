@@ -1,116 +1,131 @@
-import { createUser, findUsers, consultarUsuarioPorEmail, consultarUsuarioPorID, deleteUserByID, updateUser } from '../models/userModel.js';
-import { conexion_Local } from '../config/database.js';
-import { buscarNombre} from '../utils/userFilters.js';
-import { sendMail } from '../utils/sendmail.js';
-import { capitalizeText } from '../utils/normalizeText.js';
 import bcrypt from 'bcrypt';
+import { capitalizeText } from '../utils/normalizeText.js';
+import connectionDB from '../config/database.js';
+import { deleteUserById, findUserByEmail, findUserById } from '../models/userModel.js';
+import { emailCreatUser } from '../utils/sendmail.js';
+import { promiseLogoutUser } from '../utils/authHelper.js';
 
-const conexion = conexion_Local;
 
 // ------------------------------ registrar usuario ------------------------------
 // -------------------------------------------------------------------------------
 
 export const registerUser = async (req, res) => {
 
-  //obtener conexion para transaccion
-  const transaccionConexion = await conexion.getConnection();
+  // declarar conexion
+  let conn;
   
-  try {
-        
-    // Inicia la transacción
-    await transaccionConexion.beginTransaction();
+  try {        
+    // obtener conexión e iniciar transacción
+    conn = await connectionDB.getConnection();
+    await conn.beginTransaction();
 
-    let { nombre, apellido, password, dni, pasaporte, email, telefono, direccion } = req.body;
+    let { firstName, lastName, password, nationalId, passport, email, phoneNumber, address } = req.body;
 
     // dar formato a entradas
-    nombre = capitalizeText(nombre).trim()
-    apellido = capitalizeText(apellido).trim()
+    firstName = capitalizeText(firstName).trim()
+    lastName = capitalizeText(lastName).trim()
     email = email.toLowerCase()
 
     // verificar si usuario existe por email
-    const existeusuario = await consultarUsuarioPorEmail(transaccionConexion, email)
-    if (existeusuario) {
-      return res.status(400).json({message : 'el usuario ya se encuentra registrado'})
+    const userExists = await findUserByEmail(conn, email)
+    console.log("verificar que userExist de el valor correcto", userExists) // TO DO
+    if (userExists) {
+      return res.status(409).json({
+        success: false, 
+        message : 'el usuario ya se encuentra registrado',
+        status: 409
+      })
     }
 
     // Hashear contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Crear el usuario en tabla usuarios
-    const insertId = await createUser(transaccionConexion, nombre, apellido, hashedPassword, dni, pasaporte, email, telefono, direccion);
+    const insertId = await createUser(conn, firstName, lastName, hashedPassword, nationalId, passport, email, phoneNumber, address);
     if (!insertId) {
-      // TO DO trow new error??? para que haga el rollback
-      return res.status(400).json({message : 'error al crear el usuario'})
+      throw new Error('error al crear el usuario en la base de datos')      
     }
-    console.log(email)
+
     // enviar correo de registro
     const to = email
-    const subject = "Bienvenido a Pro Code Camp"
-    const text = `Bienvenido ${nombre} ${apellido} a Pro Code Camp`
+    const subject = `¡Bienvenido/a ${firstName} a V2 API Layered Architecture!`
+    const html = emailCreatUser
 
-    const mailResult = await sendMail (to, subject, text)
+    const mailResult = await sendMail (to, subject, html)
+
+    //verificar si mail fue enviado
+    let mailStatus = 'email enviado con exito'
     if (!mailResult) {
-      return res.status(500).json({ error: 'Error al enviar el correo' });
-    }
+      mailStatus = 'error al enviar el email'
+      }
     
     //confirmar transacción
-    await transaccionConexion.commit();
+    await conn.commit();
 
     // Respuesta exitosa
     return res.status(201).json({
+      success: false,
       message: 'Usuario creado exitosamente',
-      usuario_id: insertId // Devuelve el ID
+      details : {
+        userId: insertId,
+        sendMail : mailStatus
+      }
     });
        
 
   } catch (error) {
     // Revertir la transacción
-    console.log(error)
-    await transaccionConexion.rollback();
-    res.status(500).json({ error: 'Error al crear el usuario' });
+    console.error('Error en registerUser:', error)
+    await conn.rollback();    
+
+    res.status(500).json({ 
+      success: false, 
+      message : error.message || 'error al crear el usuario',
+      status: 500       
+     });
   } finally {
     // Libera la conexión al pool
-   transaccionConexion.release();
+   if (conn) conn.release();
     }
 }; 
 
 
 
 
-// --------------------- buscar usuario por nombre o apellido ----------------------
-// -------------------------------------------------------------------------------
+// // --------------------- buscar usuario por nombre o apellido ----------------------
+// // -------------------------------------------------------------------------------
+// // TO DO refactorizar
+// export const getUser = async (req, res) => {    
+//     let {firstName} = req.query;
 
-export const getUser = async (req, res) => {    
-    let {nombre} = req.query;
+// try {
+//     // buscar todos los usuarios
+//     const result = await findUsers(conexion);
+//     let user = result
 
-try {
-    // buscar todos los usuarios
-    const result = await findUsers(conexion);
-    let user = result
+//     // filtros 
+//     if (firstName){
+//       // dar formato a entradas
+//       firstName = capitalizeText(firstName).trim()      
+//       // buscar usuario por nombre
+//       user = buscarNombre(firstName, result)
+//     }
 
-    // filtros 
-    if (nombre){
-      // dar formato a entradas
-      nombre = capitalizeText(nombre).trim()      
-      // buscar usuario por nombre
-      user = buscarNombre(nombre, result)
-    }
+//     // respuesta usuario no encontrado
+//     if (!user) {
+//       return res.status(400).json({
+//       message: 'no se ha encontrado ningun usuario con la busqueda seleccionada'})
+//       }
 
-    // respuesta usuario no encontrado
-    if (!user) {
-      return res.status(400).json({
-      message: 'no se ha encontrado ningun usuario con la busqueda seleccionada'})
-      }
-
-    //respuesta exitosa
-    return res.status(201).json({
-        message: 'usuario encontrado exitosamente',
-        usuarios: user   
-    });
-} catch (error) {
-    res.status(500).json ({error : 'error al buscar el usuario.'})
-}
-}
+//     //respuesta exitosa
+//     return res.status(201).json({
+//         message: 'usuario encontrado exitosamente',
+//         usuarios: user   
+//     });
+// } catch (error) {
+//     res.status(500).json ({error : 'error al buscar el usuario'})
+// }
+// }
 
 
 
@@ -118,26 +133,45 @@ try {
 // ---------------------------- buscar usuario por ID ----------------------------
 // -------------------------------------------------------------------------------
 export const getUserByID = async (req, res) => {    
-  const id = req.params.id;
+  
+  let conn;
+try {  
+  // obtener conexión
+  conn = await connectionDB.getConnection();
+  
+  // datos de usuario del front
+  const userId = req.params.id;
 
-try {
+  // buscar usuario
+  const user = await findUserById(conn, userId);
 
-  // buscar todos los usuarios
-  const datosUsuario = await consultarUsuarioPorID(conexion, id);
-
-  if (!datosUsuario) return res.status(400).json({
-    message: 'id de usuario no encontrado'})
+  if (!user) return res.status(404).json({    
+    success: false, 
+    message : 'id de usuario no encontrado',
+    status: 404
+  })
   
   // Eliminar la contraseña del objeto datosUsuario
-  delete datosUsuario.password;
+  delete user.password;
 
   //respuesta exitosa
-  return res.status(201).json({
+  return res.status(200).json({
+      success: true, 
       message: 'usuario encontrado exitosamente',
-      usuario: datosUsuario 
+      usuario: user,
+      status: 200
   });
+
   } catch (error) {
-    res.status(500).json ({error : 'error al buscar el usuario.'})
+    console.error('Error en getUserByID:', error);
+    res.status(500).json({ 
+      success: false, 
+      message : 'error al buscar el usuario',
+      status: 500
+    })
+
+  } finally {
+   if (conn) conn.release();
   }
 }
 
@@ -147,125 +181,165 @@ try {
 // -------------------------------------------------------------------------------
 export const deleteUSer  = async (req, res) => {
     
-    //obtener conexion para transaccion
-    const transaccionConexion = await conexion.getConnection();
+    // declarar conexión
+    let conn
   
     try {
           
-      // Inicia la transacción
-      await transaccionConexion.beginTransaction()
-      const usuarioId = req.user.id;
-      
-      //borrar usuario en tablas relacionadas y luego en tabla principal
-      const result = await deleteUserByID(transaccionConexion, usuarioId )
+      // obtener conexión e iniciar transacción
+      conn = await connectionDB.getConnection();;
+      await conn.beginTransaction()
 
+      //datos de usuario
+      const userId = req.user.id;
+      
+      //borrar usuario
+      const result = await deleteUserById(conn, userId)
       if (!result) {
-        await transaccionConexion.rollback();
-        return res.status(404).json({ error: 'Usuario no encontrado' });
-      }
-     
-      // Cerrar la sesión actual usando la función logoutUser
-      req.logout((err) => {
-          if (err) return res.status(500).json({ error: 'Error al cerrar sesión' });          
+        return res.status(404).json({
+          success: false,
+          message: 'Usuario no encontrado',
+          status : 404 
         });
+      }
+      
+      // cerrar sesion con passport
+      await promiseLogoutUser(req);
+
+      // 2. Eliminar cookie del cliente
+      res.clearCookie('connect.sid', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/'
+    });
 
       //confirmar transacción
-      await transaccionConexion.commit(); 
+      await conn.commit(); 
 
       // Respuesta exitosa
-      return res.status(201).json({ message: 'usuario borrado con exito'});
+      return res.status(200).json({ 
+        success : true,
+        message: 'usuario borrado con exito',
+        status : 200
+      });
   
     } catch (error) {      
-      await transaccionConexion.rollback();
-      res.status(500).json({ error: 'Error al borrar el usuario' });
+      console.error('Error en deleteUser', error);
+      await conn.rollback();
+
+      res.status(500).json({ 
+        success: false, 
+        message : 'Error al borrar el usuario',
+        status: 500,
+        details : {
+          sesion : error.message
+        }
+      })      
+    
     } finally {
-      // Libera la conexión al pool
-     transaccionConexion.release();
+     if (conn) conn.release();
     }
 };
 
 
 // ------------------------------- actualizar usuario --------------------------------
 // -------------------------------------------------------------------------------
-export const putUSer  = async (req, res) => {
+export const putUser  = async (req, res) => {
   
+  let conn;
+
   try {
-    //obtener campos del front    
-    let { nombre, apellido, email, telefono, direccion } = req.body;
-    const usuario_id = req.user.id;
+    // obtener conexion
+    conn = await connectionDB.getConnection();
+
+    //datos de usuario    
+    let { firstName, lastName, email, phoneNumber, address } = req.body;
+
+    const userId = req.user.id;
 
     
     // verificar compos con informacion para validar
-    const usuarioFront = {}
+    const userInput = {}
     
-    if (nombre) {
-      nombre = capitalizeText(nombre).trim();
-      usuarioFront.nombre = nombre;
-    }
-
-    if (apellido) {
-      apellido = capitalizeText(apellido).trim()
-      usuarioFront.apellido = apellido;
-    }
-               
-    if (email) {
-      email = email.toLowerCase()
-      usuarioFront.email = email;;
-    }
-    
-    if (telefono) {
-      usuarioFront.telefono = telefono;
-    }
-    
-    if (direccion) {
-      usuarioFront.direccion = direccion;
-    }
+    if (firstName) userInput.firstName = capitalizeText(firstName).trim();
+    if (lastName) userInput.lastName = capitalizeText(lastName).trim()
+    if (email) userInput.email = email.toLowerCase()    
+    if (phoneNumber) userInput.phoneNumber = phoneNumber.trim();
+    if (address) userInput.address = address.trim();
     
     // verificar que haya informacion a validar
-    if (Object.keys(usuarioFront).length === 0){
-      return res.status(400).json({ error : "No se recibió información para actualizar."})
+    if (Object.keys(userInput).length === 0){
+      return res.status(400).json({ 
+        success: false, 
+        error : "No se recibió información para actualizar",
+        status: 400})
     };
     
     
-    // buscar informacion del usuario en la bbdd     
-    const usuarioBBDD = await consultarUsuarioPorID(conexion, usuario_id)
+    // obtener usuario actual    
+    const currentUser = await findUserById(conn, userId)
+    if (currentUser.phoneNumber){
+    currentUser.phoneNumber = currentUser.phoneNumber.toString()
+    }
     
-    // convertir telefono en string para comparar con front
-    usuarioBBDD.telefono = usuarioBBDD.telefono.toString()
-
     //iniciar objeto con informacion a actualizar
-    const UpdateInfoUsuario = {}  
+    const updateFields = {}  
 
-    // verificar si la informacion es igual a la almacenada en BBDD  
-    for (let clave in usuarioFront){
-      if(usuarioFront[clave] !== usuarioBBDD[clave]){
-        UpdateInfoUsuario[clave] = usuarioFront[clave]
+    // comparar informacion  
+    for (let key in userInput){
+      if(userInput[key] !== currentUser[key]){
+        updateFields[key] = userInput[key]
       }
     }
 
     // Verificar si hay datos para actualizar
-    if (Object.keys(UpdateInfoUsuario).length === 0) {
-      return res.status(400).json({ error: "No hay información para actualizar." });
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "No hay información para actualizar",
+        status : 400 });
     }
 
     // verificar que el mail no pertenezca a otro usuario antes de actualizar 
-    if (UpdateInfoUsuario.email) {
-      const mailExiste = await consultarUsuarioPorEmail(conexion, usuarioFront.email)
+    if (updateFields.email) {
+      const emailExists = await findUserByEmail(conn, userInput.email)
       
-      if (mailExiste) {
-        return res.status(400).json({ message: 'el mail ya pertenece a un usuario inscripto'});
+      if (emailExists) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'el email pertenece a un usuario inscripto',
+          status : 400
+          });
         }
     }     
-    console.log(UpdateInfoUsuario)
+    
     // actualizar datos de usuario
-    const actualizarUsuario = await updateUser(conexion, UpdateInfoUsuario, usuario_id);
+    const updateResult = await updateUser(conn, updateFields, currentUser.id);
    
-    if (!actualizarUsuario) return res.status(400).json({error: 'error al actualizar el usuario'})
+    if (!updateResult) return res.status(400).json({
+      success: false,
+      error: 'error al actualizar el usuario',
+      status : 400
+    })
     
     // Respuesta exitosa
-    return res.status(201).json({ message: 'usuario actualizado con exito'});
+    return res.status(201).json({ 
+      success: true,
+      message: 'usuario actualizado con exito',
+      status : 201
+    });
   
-  } catch (error) {         
-      res.status(500).json({ error: 'Error al actualizar el usuario' });
+  } catch 
+      (error) {   
+      console.error('Error en updateUser', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Error al actualizar el usuario',
+        status: 500,
+    });
+  } finally {
+      // Libera la conexión al pool
+      if (conn) conn.release();
   } 
 };

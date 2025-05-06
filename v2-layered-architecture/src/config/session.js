@@ -12,7 +12,7 @@ if (ENVIROMENT === 'production') {
     httpOnly: true,
     secure: true,
     maxAge: 1000 * 60 * 30, // 30 minutos
-    sameSite: 'lax'
+    sameSite: 'strict'
   };
   sessionConfig.saveUninitialized = false;
 }

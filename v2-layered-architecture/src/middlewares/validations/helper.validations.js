@@ -8,7 +8,7 @@ export const validationsResponse = (req, res, next) => {
             acc[error.path] = error.msg;
             return acc;
         }, {});
-        return res.status(400).json({ errors: errorMessages });
+        return res.status(400).json({ success: false, errors: errorMessages, status: 400 });
     }
     next();
 };
@@ -16,9 +16,9 @@ export const validationsResponse = (req, res, next) => {
 export const USER_REGEX = {
     name : /^[A-Za-zÁ-ÿ\s]+$/,
     password : /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,20}$/,
-    dni : /^[0-9]{8,10}[A-Za-z]*$/,
-    pasaporte : /^[A-Za-z0-9]{6,9}$/, 
-    telefono : /^[0-9]+$/, 
-    direccion : /^[A-Za-z0-9\s,.-]+$/
+    nationalId : /^[0-9]{8,10}[A-Za-z]*$/,
+    passport : /^[A-Za-z0-9]{6,9}$/, 
+    phoneNumber : /^[0-9]+$/, 
+    address : /^[A-Za-z0-9\s,.-]+$/
 }
 

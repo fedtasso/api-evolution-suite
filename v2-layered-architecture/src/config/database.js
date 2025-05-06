@@ -30,6 +30,7 @@ const currentConfig = configDB[ENVIRONMENT];
 // Crear pool de conexiones
 const connectionDB = mysql.createPool({
   ...currentConfig,
+  connectTimeout: 10000,
   waitForConnections: true,
   connectionLimit: parseInt(DB_POOL_LIMIT),
   queueLimit: parseInt(DB_QUEUE_LIMIT),
