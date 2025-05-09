@@ -1,9 +1,9 @@
 import { check, param} from 'express-validator';
-import { USER_REGEX, validationsResponse } from './helper.validations.js';
+import { USER_REGEX, validationsResponse } from './helperValidations.js';
 
 
 // Middleware de validación general de usuario
-export const validarUsuarioGeneral = [
+export const baseUserValidations = [
     check('firstName')
         .trim()
         .optional()
@@ -17,23 +17,28 @@ export const validarUsuarioGeneral = [
         .matches(USER_REGEX.name).withMessage('El apellido solo puede contener letras y espacios'),
 
     check('password')
+        .trim()
         .optional()
         .matches(USER_REGEX.password)
         .withMessage('La contraseña debe tener entre 8 y 20 caracteres, e incluir una minúscula, una mayúscula, un número y un caracter especial (@$!%*?&)'),
 
     check('nationalId')
+        .trim()
         .optional()
         .matches(USER_REGEX.nationalId).withMessage('El DNI debe contener solo dígitos y opcionalmente una letra'),
 
     check('passport')
+        .trim()
         .optional()
         .matches(USER_REGEX.passport).withMessage('El pasaporte debe tener entre 6 y 9 caracteres alfanuméricos'),
     
     check('email')
+        .trim()
         .optional()
         .isEmail().withMessage('El correo electrónico debe ser válido'),
 
     check('phoneNumber')
+        .trim()
         .optional()
         .isLength({ min: 8, max: 15 }).withMessage('El teléfono debe tener entre 8 y 15 dígitos')
         .matches(USER_REGEX.phoneNumber).withMessage('El teléfono debe contener solo números'),
@@ -49,7 +54,7 @@ export const validarUsuarioGeneral = [
 
 
 // Middleware de validación para registro de usuario
-export const validarPost = [
+export const validateUserCreation = [
     check('firstName')
         .notEmpty().withMessage('El campo nombre es obligatorio'),
         
@@ -71,14 +76,14 @@ export const validarPost = [
     
     validationsResponse,
     
-    ...validarUsuarioGeneral
+    ...baseUserValidations
     
         
 ];
 
 
 // Middelware de validacion de id
-export const validarId = [
+export const validateId = [
     param('id')
         .isInt({ min: 1 }).withMessage('El ID de usuario debe ser un número entero mayor a 0'),
 

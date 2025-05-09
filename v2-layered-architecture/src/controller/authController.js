@@ -1,12 +1,12 @@
 import passport from 'passport';
 import bcrypt from 'bcrypt';
 import validator from 'validator'
-import { putPassword, tokenRecovery, markUsedToken } from '../models/authModel';
-import { promiseLogoutUser } from '../utils/authHelper';
-import connectionDB from '../config/database';
-import { findUserByEmail } from '../models/userModel';
-import { recoveryPassword, verifyRecoveryPassword } from '../config/token';
-import { emailPasswordRecovery, sendMail } from '../utils/sendmail';
+import { putPassword, tokenRecovery, markUsedToken, isTokenUsed } from '../models/authModel.js';
+import { promiseLogoutUser } from '../utils/authHelper.js';
+import connectionDB from '../config/database.js';
+import { findUserByEmail } from '../models/userModel.js';
+import { recoveryPassword, verifyRecoveryPassword } from '../config/token.js';
+import { emailPasswordRecovery, sendMail } from '../utils/sendmail.js';
 
 
 // ------------------------ login usario email y contraseña ----------------------
@@ -35,6 +35,7 @@ export const loginUser = (req, res, next) => {
 // -------------------------------------------------------------------------------
 
 export const httpLogoutUser = (req, res) => { 
+  
   // cerrar sesion
   req.logout((err) => {
     if (err) return res.status(500).json({ 
@@ -42,17 +43,16 @@ export const httpLogoutUser = (req, res) => {
       error: 'Error al cerrar sesión',
       status: 500
     })
-  });
-    
-  // Eliminar la cookie
-  req.session.destroy((err) => {
-    if (err) return res.status(500).json({
-      success: false, 
-      error: 'Error al destruir la sesión',
-      status: 500
+    // Eliminar la cookie
+    req.session.destroy((err) => {
+      if (err) return res.status(500).json({
+        success: false, 
+        error: 'Error al destruir la sesión',
+        status: 500
+      });
     });
   });
-
+  
   // Eliminar la cookie en el cliente
   res.clearCookie('connect.sid', {
     httpOnly: true,
@@ -60,6 +60,7 @@ export const httpLogoutUser = (req, res) => {
     sameSite: 'strict',
     path: '/'
   });
+
 
   return res.status(200).json({ 
     success: true,
@@ -176,11 +177,11 @@ export const recoveryPasswordEmail = async (req, res) => {
     // guardar token en tabla
     const tokenResult = await tokenRecovery(conn, user.id, token)
     if (!tokenResult) throw new Error('Error al guardar el token');
-
+  
     // enviar correo con enlace para recuperar password
     const to = email
     const subject = "Recuperar contraseña"
-    const html = emailPasswordRecovery
+    const html = emailPasswordRecovery(user.first_name, user.last_name, token)
 
     const mailResult = await sendMail(to, subject, html)
     if (!mailResult) throw new Error('Error al enviar el correo')
@@ -221,12 +222,23 @@ export const recoveryPasswordReset = async (req, res) => {
     const token = req.params.token;
     const { password } = req.body;
 
+    
     // verificar token y obtner datos de usuario
     const user = verifyRecoveryPassword(token)
     if (!user){        
       return res.status(400).json({ 
         success: false,
         message: 'token invalido o expirado',
+        status: 400
+      });
+    }
+    
+    //verificar si el token ya fue usado
+    const verifyIsTokenUsed = await isTokenUsed(conn, user.id, token,)
+    if (verifyIsTokenUsed[0].is_used === 1){
+      return res.status(400).json({ 
+        success: false,
+        message: 'token usado',
         status: 400
       });
     }

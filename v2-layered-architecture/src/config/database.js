@@ -12,8 +12,8 @@ const configDB = {
     database: DB_NAME,
     user: DB_USER,
     password: DB_PASS,
-    port: DB_PORT,
-    ssl: process.env.DB_SSL ? JSON.parse(DB_SSL) : undefined 
+    port: DB_PORT
+    
   },
   development: {
     host: DB_DEV_HOST,
@@ -25,7 +25,7 @@ const configDB = {
 };
 
 // Seleccionar configuración según el entorno
-const currentConfig = configDB[ENVIRONMENT];
+export const currentConfig = configDB[ENVIRONMENT];
 
 // Crear pool de conexiones
 const connectionDB = mysql.createPool({
@@ -44,10 +44,11 @@ async function testConnection() {
   let connection;
   try {
     connection = await connectionDB.getConnection();
-    console.log(`Conexión a la base de datos (${currentConfig[ENVIRONMENT].HOST}) exitosa`);
+    console.log(`Conexión a la base de datos (${currentConfig.host}) exitosa`);
     await connection.query('SELECT 1');
   } catch (error) {
-    console.error(`Error al conectar a la base de datos (${currentConfig[ENVIRONMENT].HOST}):`, error.message);
+    console.log(currentConfig)
+    console.error(`Error al conectar a la base de datos (${currentConfig.host}):`, error.message);
     throw error;
   } finally {
     if (connection) connection.release();

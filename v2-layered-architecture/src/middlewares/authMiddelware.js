@@ -3,7 +3,10 @@ export const isAuthenticated = (req, res, next) => {
       return next(); // El usuario está autenticado, sigue con la ejecución de la ruta
       
     } else {
-      return res.status(401).json({ message: 'No autorizado. Debes iniciar sesión });
-
+      return res.status(401).json({ 
+        success: false,
+        message: 'No autorizado. Debes iniciar sesión',
+        status: 401
+      });
     }
   }

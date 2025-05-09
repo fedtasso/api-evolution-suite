@@ -1,19 +1,17 @@
 import { check } from 'express-validator';
-import { USER_REGEX, validationsResponse } from './helper.validations.js';
-import { validarUsuarioGeneral } from './userValidations.js';
+import { USER_REGEX, validationsResponse } from './helperValidations.js';
+import { baseUserValidations } from './userValidations.js';
+
 
 
 // Middleware de validación para login de usuario
-export const validarLogin = [
+export const validateLogin = [
     check('email')
         .notEmpty().withMessage('El campo email es obligatorio'),
-
     check('password')
         .notEmpty().withMessage('El campo contraseña es obligatorio'),
-
     validationsResponse,
-
-    ...validarUsuarioGeneral
+    ...baseUserValidations
 ];
 
 
@@ -24,33 +22,27 @@ const validarPassword = (campo) =>
         .matches(USER_REGEX.password)
         .withMessage('La contraseña debe tener entre 8 y 20 caracteres, e incluir una minúscula, una mayúscula, un número y un caracter especial (@$!%*?&)');
 
-
-export const validarUpdatePassword = [
+export const validateUpdatePassword = [
     validarPassword('oldPassword'),
     validarPassword('newPassword'),
-
     validationsResponse,
-
-    ...validarUsuarioGeneral
+    ...baseUserValidations
 ];
 
 
 // Middleware de validación para login de usuario
-export const validarRecoveryEmail = [
+export const validateRecoveryEmail = [
     check('email')
         .notEmpty().withMessage('El campo email es obligatorio'),
-
     validationsResponse,
-
-    ...validarUsuarioGeneral
+    ...baseUserValidations
 ];
 
+
 // Middleware de validación para login de usuario
-export const validarRecoveryPassword = [
+export const validateRecoveryPassword = [
     check('password')
         .notEmpty().withMessage('El campo contraseña es obligatorio'),
-
     validationsResponse,
-
-    ...validarUsuarioGeneral
+    ...baseUserValidations
 ];

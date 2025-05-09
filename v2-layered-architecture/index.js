@@ -1,11 +1,11 @@
 import express from 'express';
-import { PORT } from './src/config/config.js';
 import cors from 'cors';
-import passport from './src/config/passportConfig.js';
-
+import passport from './src/config/passport.js';
 import userRoutes from './src/routes/userRoutes.js';
 import authRoutes from './src/routes/authRoutes.js';
 import { testConnection } from './src/config/database.js';
+import sessionMiddleware from './src/config/session.js';
+import { PORT } from './src/config/config.js';
 
 
 const app = express();
@@ -15,15 +15,15 @@ app.use(cors());
 app.use(express.json()); 
 
 // iniciar session
-app.use(sessionConfig)
+app.use(sessionMiddleware)
 
 // Inicializar Passport
 app.use(passport.initialize());
 app.use(passport.session());
 
 // Rutas de la API
-app.use('/', userRoutes);
-app.use('/', authRoutes);
+app.use('/v2/layered-architecture', userRoutes);
+app.use('/v2/layered-architecture', authRoutes);
 
 
 // Manejo de rutas no encontradas
@@ -38,7 +38,9 @@ app.use((error, req, res, next) => {
   res.status(error.status || 500);
   res.json({
     error: {
-      message: error.message
+      success: false,
+      message: error.message,
+      status: error.status || 500
     }
   });
 });

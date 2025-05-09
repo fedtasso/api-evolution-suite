@@ -7,7 +7,7 @@ config();
 export const PORT = process.env.PORT || 5000;
 export const SESSION_SECRET_PASS = process.env.SESSION_SECRET_PASS;
 export const JWT_SECRET_PASS = process.env.JWT_SECRET_PASS;
-export const ENVIROMENT = process.env.ENVIROMENT || 'development';
+export const ENVIRONMENT = process.env.ENVIRONMENT || 'development';
 
 // Configuración base de datos en producción
 export const DB_HOST = process.env.DB_HOST;

@@ -18,5 +18,12 @@ export const markUsedToken = async (conn, userId, token) => {
   SET is_used = TRUE, used_at = CURRENT_TIMESTAMP
   WHERE user_id = ? AND token_recovery = ? AND is_used = FALSE`;
   const [result] = await conn.query(query, [userId, token])
- return result;
+  return result;
 };
+
+export const isTokenUsed = async(conn, userId, token) => {
+  const query = `SELECT is_used FROM password_reset_tokens  WHERE user_id = ? AND token_recovery = ?`;
+  const [result] = await conn.query(query, [userId, token]);
+  return result;
+
+}

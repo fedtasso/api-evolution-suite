@@ -1,8 +1,8 @@
 import bcrypt from 'bcrypt';
 import { capitalizeText } from '../utils/normalizeText.js';
 import connectionDB from '../config/database.js';
-import { deleteUserById, findUserByEmail, findUserById } from '../models/userModel.js';
-import { emailCreatUser } from '../utils/sendmail.js';
+import { assignedRole, createUser, deleteUserById, findUserByEmail, findUserById, updateUser } from '../models/userModel.js';
+import { emailCreatUser, sendMail } from '../utils/sendmail.js';
 import { promiseLogoutUser } from '../utils/authHelper.js';
 
 
@@ -20,15 +20,13 @@ export const registerUser = async (req, res) => {
     await conn.beginTransaction();
 
     let { firstName, lastName, password, nationalId, passport, email, phoneNumber, address } = req.body;
-
     // dar formato a entradas
     firstName = capitalizeText(firstName).trim()
     lastName = capitalizeText(lastName).trim()
-    email = email.toLowerCase()
+    email = email.toLowerCase().trim()
 
     // verificar si usuario existe por email
     const userExists = await findUserByEmail(conn, email)
-    console.log("verificar que userExist de el valor correcto", userExists) // TO DO
     if (userExists) {
       return res.status(409).json({
         success: false, 
@@ -41,15 +39,19 @@ export const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Crear el usuario en tabla usuarios
-    const insertId = await createUser(conn, firstName, lastName, hashedPassword, nationalId, passport, email, phoneNumber, address);
+    const insertId = await createUser(conn, firstName, lastName, hashedPassword, nationalId, passport, email, phoneNumber, address);    
     if (!insertId) {
       throw new Error('error al crear el usuario en la base de datos')      
     }
 
+    // asignar rol
+
+    const rol = await assignedRole(conn, insertId, 2)
+
     // enviar correo de registro
-    const to = email
-    const subject = `¡Bienvenido/a ${firstName} a V2 API Layered Architecture!`
-    const html = emailCreatUser
+    const to = email;
+    const subject = `¡Bienvenido/a ${firstName} a V2 API Layered Architecture!`;
+    const html = emailCreatUser(firstName, lastName, email);
 
     const mailResult = await sendMail (to, subject, html)
 
@@ -64,7 +66,7 @@ export const registerUser = async (req, res) => {
 
     // Respuesta exitosa
     return res.status(201).json({
-      success: false,
+      success: true,
       message: 'Usuario creado exitosamente',
       details : {
         userId: insertId,
@@ -150,7 +152,7 @@ try {
     message : 'id de usuario no encontrado',
     status: 404
   })
-  
+  console.log(user)
   // Eliminar la contraseña del objeto datosUsuario
   delete user.password;
 
@@ -158,7 +160,7 @@ try {
   return res.status(200).json({
       success: true, 
       message: 'usuario encontrado exitosamente',
-      usuario: user,
+      user,
       status: 200
   });
 
@@ -262,10 +264,10 @@ export const putUser  = async (req, res) => {
     // verificar compos con informacion para validar
     const userInput = {}
     
-    if (firstName) userInput.firstName = capitalizeText(firstName).trim();
-    if (lastName) userInput.lastName = capitalizeText(lastName).trim()
+    if (firstName) userInput.first_name = capitalizeText(firstName).trim();
+    if (lastName) userInput.last_name = capitalizeText(lastName).trim()
     if (email) userInput.email = email.toLowerCase()    
-    if (phoneNumber) userInput.phoneNumber = phoneNumber.trim();
+    if (phoneNumber) userInput.phone_number = phoneNumber.trim();
     if (address) userInput.address = address.trim();
     
     // verificar que haya informacion a validar
