@@ -149,7 +149,7 @@ app.post('/v1/monolithic/user', async (req, res) => {
 // ------------------------ login usario con email y contraseña ----------------------
 // -------------------------------------------------------------------------------
 
-app.post('/v1/monolithic/login', async (req, res) => {
+app.post('/v1/monolithic/user/login', async (req, res) => {
        
   try {    
     // obtener parametros desde body
@@ -451,7 +451,7 @@ app.put('/v1/monolithic/user', async (req, res) => {
 
 // ----------------------------- actualizar contraseña ---------------------------
 // -------------------------------------------------------------------------------
-app.put('/v1/monolithic/user/password', async (req, res) => {
+app.put('/v1/monolithic/user/update-password', async (req, res) => {
   
   try {
 
@@ -516,7 +516,7 @@ app.put('/v1/monolithic/user/password', async (req, res) => {
 // ------------------------ recuperar contraseña (Paso 1) ------------------------
 // -------------------------------------------------------------------------------
 
-app.put('/v1/monolithic/user/reset-password/request', async (req, res) => {
+app.put('/v1/monolithic/user/recovery-password/email', async (req, res) => {
   
   try {
 
@@ -572,7 +572,7 @@ app.put('/v1/monolithic/user/reset-password/request', async (req, res) => {
 // ------------------------ recuperar contraseña (Paso 2) ------------------------
 // -------------------------------------------------------------------------------
 
-app.put('/v1/monolithic/user/reset-password/:token', async (req, res) => {
+app.put('/v1/monolithic/user/recovery-password/reset/:token', async (req, res) => {
   
   try {
 
