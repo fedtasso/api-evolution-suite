@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import { capitalizeText } from '../utils/normalizeText.js';
 import connectionDB from '../config/database.js';
-import { assignedRole, createUser, deleteUserById, findUserByEmail, findUserById, updateUser } from '../models/userModel.js';
+import { assignedRole, createUser, deleteUserById, findUserByEmail, findUserById, findUsersByName, updateUser } from '../models/userModel.js';
 import { emailCreatUser, sendMail } from '../utils/sendmail.js';
 import { promiseLogoutUser } from '../utils/authHelper.js';
 
@@ -94,40 +94,52 @@ export const registerUser = async (req, res) => {
 
 
 
-// // --------------------- buscar usuario por nombre o apellido ----------------------
-// // -------------------------------------------------------------------------------
-// // TO DO refactorizar
-// export const getUser = async (req, res) => {    
-//     let {firstName} = req.query;
+// --------------------- buscar usuario por nombre o apellido ----------------------
+// -------------------------------------------------------------------------------
 
-// try {
-//     // buscar todos los usuarios
-//     const result = await findUsers(conexion);
-//     let user = result
+export const getUser = async (req, res) => {    
+  
+  let conn
 
-//     // filtros 
-//     if (firstName){
-//       // dar formato a entradas
-//       firstName = capitalizeText(firstName).trim()      
-//       // buscar usuario por nombre
-//       user = buscarNombre(firstName, result)
-//     }
+  try {
+    // obtener conexión
+    conn = await connectionDB.getConnection();
 
-//     // respuesta usuario no encontrado
-//     if (!user) {
-//       return res.status(400).json({
-//       message: 'no se ha encontrado ningun usuario con la busqueda seleccionada'})
-//       }
+    // datos req
+    let {firstName, lastName} = req.query;
+    
+    // buscar todos los usuarios
+    const user = await findUsersByName(conn, firstName, lastName);
+    
+    // respuesta usuario no encontrado
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'no se ha encontrado ningun usuario con la busqueda seleccionada',
+        status: 404
+      })
+    }
 
-//     //respuesta exitosa
-//     return res.status(201).json({
-//         message: 'usuario encontrado exitosamente',
-//         usuarios: user   
-//     });
-// } catch (error) {
-//     res.status(500).json ({error : 'error al buscar el usuario'})
-// }
-// }
+    //respuesta exitosa
+    return res.status(201).json({
+      success: true,
+      message: 'usuario encontrado exitosamente',
+      status: 201,
+      details: {
+        usuarios: user
+      }
+    });
+  }catch (error) {
+    console.error('Error en getUser:', error)
+    res.status(500).json ({
+      success: false, 
+      error : 'error al buscar el usuario',
+      status: 500 })
+  }finally {
+  // Libera la conexión al pool
+    if (conn) conn.release();
+  }
+}
 
 
 
