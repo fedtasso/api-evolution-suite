@@ -1,7 +1,7 @@
 -- TO DO  CREATE INDEX idx_usuarios_nombre ON usuarios(first_name); y CREATE INDEX idx_usuarios_apellido ON usuarios(last_name); 
 -- o para busquedas combinadas CREATE INDEX idx_usuarios_nombre_completo ON usuarios(first_name, last_name);
 
-DROP DATABASE IF EXISTS v3_data;
+DROP DATABASE IF EXISTS v3_data; 
 CREATE DATABASE v3_data 
   DEFAULT CHARACTER SET utf8mb4 
   DEFAULT COLLATE utf8mb4_unicode_ci;

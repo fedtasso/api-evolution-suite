@@ -87,3 +87,4 @@ INSERT INTO users (first_name, last_name, national_id, email, password, phone_nu
 ('María', 'Gómez', '987654321', 'maria.gomez@example.com', '$2a$10$7pQw2X1t6W9Z8Y7XrRtOeQvL9VkR6wYt0dDn1cBn2fKs7NlWQ3Dm', '33334444', 'fake address 2');
 
 
+ 
