@@ -25,7 +25,7 @@ Cada versión representa un escalón en la madurez arquitectónica:
 |---------|--------|------------------------|-------------------|
 | [v1 - Monolithic Core](/v1-monolithic-core) | ✅ Completada | Single-file CRUD | Node.js, Express, MySQL |
 | [v2 - Modular Nexus](/v2-modular-nexus) | ✅ Completada | MVC + Middlewares | Bcrypt, Passport, Validator |
-| [v3 - ServiceCore](/v3-service-core) | 🚧 En desarrollo | Servicios con Clases | JWT, Nodemailer |
+| [v3 - ServiceCore](/v3-service-core) | 🚧 En desarrollo | Servicio, Model | JWT, Nodemailer |
 | [v4 - SecureDoc](/v4-securedoc) | 📅 Planeada | Logger + Swagger + Testing | Winston, Jest, Swagger UI |
 | [v5 - SolidCore](/v5-solidcore) | 📅 Planeada | SOLID + Repository Pattern | Inversify, DI |
 | [v6 - TypeCraft](/v6-typecraft) | 📅 Planeada | TypeScript + Decorators | TypeORM, TSConfig |
