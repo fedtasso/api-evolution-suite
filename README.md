@@ -2,15 +2,6 @@
 
 **Un viaje práctico a través de diferentes arquitecturas backend, desde un CRUD monolítico hasta sistemas escalables con patrones modernos.**
 
-## 📌 Tabla de Contenidos
-- [Visión General](#-visión-general)
-- [Stack Tecnológico](#-stack-tecnológico)
-- [Versiones y Evolución Arquitectónica](#-versiones-y-evolución-arquitectónica)
-- [Documentación API](#-documentación-api)
-- [Roadmap](#-roadmap)
-- [Contribuir](#-contribuir)
-- [Licencia](#-licencia)
-
 ## 🚩 Visión General
 Proyecto educativo que explora la evolución de una API REST a través de distintas arquitecturas backend. El objetivo principal es demostrar la progresión desde enfoques simples hasta patrones arquitectónicos avanzados, aplicando mejores prácticas y principios de diseño en cada iteración.
 
